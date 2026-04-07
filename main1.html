@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>✨ Romantic Fireworks · I LOVE U ✨</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0a0a1a;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Georgia', 'Times New Roman', 'Palatino', serif;
+        }
+        .canvas-wrapper {
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 0 2px #3a2a2a inset;
+            overflow: hidden;
+            display: inline-block;
+        }
+        canvas {
+            display: block;
+            width: 800px;
+            height: 600px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+<div class="canvas-wrapper">
+    <canvas id="romanticCanvas" width="800" height="600"></canvas>
+</div>
+<script>
+    (function(){
+        "use strict";
+
+        const canvas = document.getElementById('romanticCanvas');
+        const ctx = canvas.getContext('2d');
+        const W = 800, H = 600;
+
+        // ---------- 全局参数 ----------
+        const STATE_CURTAIN = 0;
+        const STATE_FIREWORKS = 1;
+        const STATE_TEXT = 2;
+        let state = STATE_CURTAIN;
+
+        // 帷幕
+        let leftCurtainX = 0;
+        let rightCurtainX = W / 2;
+        const curtainSpeed = 4;
+        let curtainOpen = false;
+
+        // 烟花计时
+        let fireworkTimer = 0;
+        const FIREWORK_INTERVAL = 25;
+        const MAX_FIREWORKS = 12;
+        let fireworks = [];
+        let stateStartTime = 0; // 用于8秒切换
+
+        // 星星
+        let stars = [];
+        const STARS_COUNT = 150;
+
+        // 文字动画
+        let textAlpha = 0;
+        let textScale = 1.0;
+        let floatOffset = 0.0;
+        let heartbeat = 0;
+
+        // 按钮
+        let buttons = [];
+        let showHeartFeedback = false;
+        let heartTimer = 0;
+        let heartPos = { x: 0, y: 0 };
+
+        // 戒指玫瑰
+        let showGift = false;
+        let giftAlpha = 0;
+
+        // 鼠标位置 (用于按钮hover)
+        let mouseX = 0, mouseY = 0;
+        let mousePressed = false;
+
+        // ---------- 辅助函数：颜色 ----------
+        const COLORS = {
+            BLACK: '#000000',
+            WHITE: '#FFFFFF',
+            RED: '#DC143C',
+            GOLD: '#FFD700',
+            PINK: '#FF69B4',
+            DARK_RED: '#8B0000',
+            CURTAIN_RED: '#8C1414',
+            CURTAIN_DARK: '#500000',
+            GOLDEN: '#FFDF00',
+            BLUE: '#1E90FF',
+            PURPLE: '#BA55D3',
+            ROSE: '#C81E32',
+            LEAF: '#228B22'
+        };
+
+        // ---------- 粒子系统 (华丽烟花) ----------
+        class SparkleParticle {
+            constructor(x, y, color, vx, vy, lifetime, gravity = 0.08, size = 3, trail = false) {
+                this.x = x; this.y = y;
+                this.color = color;
+                this.vx = vx; this.vy = vy;
+                this.lifetime = lifetime;
+                this.maxLifetime = lifetime;
+                this.age = 0;
+                this.gravity = gravity;
+                this.size = size;
+                this.trail = trail;
+                this.prevPositions = [];
+            }
+            update() {
+                if (this.trail && this.age % 2 === 0) {
+                    this.prevPositions.push({ x: this.x, y: this.y });
+                    if (this.prevPositions.length > 8) this.prevPositions.shift();
+                }
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vy += this.gravity;
+                this.age++;
+                return this.age < this.lifetime;
+            }
+            draw(ctx) {
+                const alpha = Math.max(0, 255 - Math.floor(255 * this.age / this.lifetime));
+                const currentSize = Math.max(1, Math.floor(this.size * (1 - this.age / this.lifetime) + 2));
+                
+                // 拖尾
+                if (this.trail && this.prevPositions.length > 1) {
+                    for (let i = 0; i < this.prevPositions.length; i++) {
+                        const pos = this.prevPositions[i];
+                        const trailAlpha = Math.floor(alpha * (i / this.prevPositions.length) * 0.6);
+                        const trailSize = Math.max(1, Math.floor(currentSize * (i / this.prevPositions.length)));
+                        ctx.beginPath();
+                        ctx.arc(pos.x, pos.y, trailSize, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${trailAlpha / 255})`;
+                        ctx.fill();
+                    }
+                }
+                
+                // 光晕
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, currentSize * 2, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${alpha / 3 / 255})`;
+                ctx.fill();
+                // 核心
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, currentSize, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${alpha / 255})`;
+                ctx.fill();
+            }
+        }
+
+        class GlitterFirework {
+            constructor() {
+                this.x = 150 + Math.random() * (W - 300);
+                this.y = 100 + Math.random() * (H - 300);
+                this.particles = [];
+                this.secondaryParticles = [];
+                this.exploded = false;
+                this.secondaryExploded = false;
+                this.rocketY = H;
+                this.rocketSpeed = 9 + Math.floor(Math.random() * 7);
+                this.rocketX = this.x;
+                this.rocketTrail = [];
+                
+                const palettes = [
+                    [{ r: 220, g: 20, b: 60 }, { r: 255, g: 215, b: 0 }, { r: 255, g: 105, b: 180 }],
+                    [{ r: 30, g: 144, b: 255 }, { r: 0, g: 255, b: 255 }, { r: 186, g: 85, b: 211 }],
+                    [{ r: 255, g: 223, b: 0 }, { r: 255, g: 140, b: 0 }, { r: 220, g: 20, b: 60 }],
+                    [{ r: 255, g: 20, b: 147 }, { r: 255, g: 105, b: 180 }, { r: 255, g: 182, b: 193 }]
+                ];
+                this.colorPalette = palettes[Math.floor(Math.random() * palettes.length)];
+                this.explosionType = ['sphere', 'ring', 'heart'][Math.floor(Math.random() * 3)];
+            }
+            update() {
+                if (!this.exploded) {
+                    this.rocketTrail.push({ x: this.rocketX, y: this.rocketY });
+                    if (this.rocketTrail.length > 12) this.rocketTrail.shift();
+                    this.rocketY -= this.rocketSpeed;
+                    if (this.rocketY <= this.y) {
+                        this.exploded = true;
+                        this.explode();
+                    }
+                    return true;
+                } else {
+                    this.particles = this.particles.filter(p => p.update());
+                    if (this.secondaryExploded) {
+                        this.secondaryParticles = this.secondaryParticles.filter(p => p.update());
+                    } else if (this.particles.length < 50 && !this.secondaryExploded) {
+                        this.secondaryExplode();
+                    }
+                    return this.particles.length > 0 || this.secondaryParticles.length > 0;
+                }
+            }
+            explod() {
+                const num = 80 + Math.floor(Math.random() * 41);
+                for (let i = 0; i < num; i++) {
+                    let angle, speed;
+                    if (this.explosionType === 'sphere') {
+                        angle = Math.random() * 2 * Math.PI;
+                        speed = 3 + Math.random() * 4;
+                    } else if (this.explosionType === 'ring') {
+                        angle = Math.random() * 2 * Math.PI;
+                        speed = 5 + Math.random() * 3;
+                        angle += (Math.random() - 0.5) * 0.4;
+                    } else { // heart
+                        const t = Math.random() * 2 * Math.PI;
+                        const x = 16 * Math.pow(Math.sin(t), 3);
+                        const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t);
+                        angle = Math.atan2(y, x);
+                        speed = 4 + Math.random() * 4;
+                    }
+                    const vx = Math.cos(angle) * speed;
+                    const vy = Math.sin(angle) * speed;
+                    const lifetime = 60 + Math.floor(Math.random() * 61);
+                    const color = this.colorPalette[Math.floor(Math.random() * this.colorPalette.length)];
+                    const size = 3 + Math.floor(Math.random() * 3);
+                    this.particles.push(new SparkleParticle(this.x, this.y, color, vx, vy, lifetime, 0.06, size, true));
+                }
+            }
+            secondaryExplode() {
+                this.secondaryExploded = true;
+                for (let i = 0; i < 30; i++) {
+                    const angle = Math.random() * 2 * Math.PI;
+                    const speed = 2 + Math.random() * 3;
+                    const vx = Math.cos(angle) * speed;
+                    const vy = Math.sin(angle) * speed;
+                    const lifetime = 40 + Math.floor(Math.random() * 41);
+                    const color = { r: 255, g: 223, b: 0 };
+                    this.secondaryParticles.push(new SparkleParticle(this.x, this.y, color, vx, vy, lifetime, 0.05, 2, false));
+                }
+            }
+            draw(ctx) {
+                if (!this.exploded) {
+                    for (let i = 0; i < this.rocketTrail.length; i++) {
+                        const pos = this.rocketTrail[i];
+                        const alpha = Math.floor(200 * (i / this.rocketTrail.length));
+                        const size = Math.floor(4 * (i / this.rocketTrail.length)) + 1;
+                        ctx.beginPath();
+                        ctx.arc(pos.x, pos.y, size, 0, Math.PI*2);
+                        ctx.fillStyle = `rgba(255, 200, 100, ${alpha/255})`;
+                        ctx.fill();
+                    }
+                    ctx.beginPath();
+                    ctx.arc(this.rocketX, this.rocketY, 5, 0, Math.PI*2);
+                    ctx.fillStyle = '#FFF';
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(this.rocketX, this.rocketY, 3, 0, Math.PI*2);
+                    ctx.fillStyle = '#FFDF00';
+                    ctx.fill();
+                } else {
+                    this.particles.forEach(p => p.draw(ctx));
+                    this.secondaryParticles.forEach(p => p.draw(ctx));
+                }
+            }
+        }
+
+        // ---------- 星星 ----------
+        class Star {
+            constructor() {
+                this.x = Math.random() * W;
+                this.y = Math.random() * H;
+                this.brightness = 50 + Math.floor(Math.random() * 206);
+                this.size = 1 + Math.floor(Math.random() * 2);
+            }
+            twinkle() {
+                this.brightness += Math.floor(Math.random() * 31) - 15;
+                this.brightness = Math.max(30, Math.min(255, this.brightness));
+            }
+            draw(ctx) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
+                ctx.fillStyle = `rgb(${this.brightness}, ${this.brightness}, ${this.brightness})`;
+                ctx.fill();
+            }
+        }
+
+        // ---------- 初始化星星 ----------
+        for (let i = 0; i < STARS_COUNT; i++) stars.push(new Star());
+
+        // ---------- 按钮类 (Canvas内绘制) ----------
+        class CanvasButton {
+            constructor(x, y, w, h, text, normalColor, hoverColor, clickColor) {
+                this.rect = { x, y, w, h };
+                this.text = text;
+                this.normal = normalColor;
+                this.hover = hoverColor;
+                this.click = clickColor;
+                this.current = normalColor;
+                this.clicked = false;
+                this.clickTimer = 0;
+            }
+            checkHover(mx, my) {
+                return mx >= this.rect.x && mx <= this.rect.x + this.rect.w && my >= this.rect.y && my <= this.rect.y + this.rect.h;
+            }
+            handleMove(mx, my) {
+                this.current = this.checkHover(mx, my) ? this.hover : this.normal;
+            }
+            handleClick(mx, my) {
+                if (this.checkHover(mx, my)) {
+                    this.clicked = true;
+                    this.clickTimer = 10;
+                    this.current = this.click;
+                    return true;
+                }
+                return false;
+            }
+            update() {
+                if (this.clicked) {
+                    this.clickTimer--;
+                    if (this.clickTimer <= 0) {
+                        this.clicked = false;
+                        this.current = this.normal;
+                    }
+                }
+            }
+            draw(ctx) {
+                // 圆角矩形
+                ctx.fillStyle = this.current;
+                ctx.shadowColor = '#FFD700';
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.roundRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h, 15);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = '#FFD700';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                ctx.font = 'bold 48px Georgia, "Times New Roman", serif';
+                ctx.fillStyle = '#FFFFFF';
+                ctx.shadowColor = '#500000';
+                ctx.shadowBlur = 4;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.text, this.rect.x + this.rect.w/2 + 2, this.rect.y + this.rect.h/2 + 2);
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillText(this.text, this.rect.x + this.rect.w/2, this.rect.y + this.rect.h/2);
+            }
+        }
+
+        // 扩展 CanvasRenderingContext2D 画圆角矩形
+        CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+            if (w < 2 * r) r = w / 2;
+            if (h < 2 * r) r = h / 2;
+            this.moveTo(x + r, y);
+            this.lineTo(x + w - r, y);
+            this.quadraticCurveTo(x + w, y, x + w, y + r);
+            this.lineTo(x + w, y + h - r);
+            this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            this.lineTo(x + r, y + h);
+            this.quadraticCurveTo(x, y + h, x, y + h - r);
+            this.lineTo(x, y + r);
+            this.quadraticCurveTo(x, y, x + r, y);
+            return this;
+        };
+
+        // 创建两个Yes按钮
+        const btnW = 150, btnH = 60, spacing = 40;
+        const startX = (W - (btnW*2 + spacing)) / 2;
+        const btnY = H/2 + 120;
+        const btn1 = new CanvasButton(startX, btnY, btnW, btnH, 'Yes', '#C85064', '#E68C96', '#A03246');
+        const btn2 = new CanvasButton(startX + btnW + spacing, btnY, btnW, btnH, 'Yes', '#C85064', '#E68C96', '#A03246');
+        buttons = [btn1, btn2];
+
+        // ---------- 绘制文字(发光) ----------
+        function drawGlowText(ctx, text, x, y, fontSize, mainColor, glowColor, alpha = 1.0, scale = 1.0, offsetY = 0) {
+            ctx.save();
+            ctx.translate(x, y + offsetY);
+            ctx.scale(scale, scale);
+            ctx.font = `bold ${fontSize}px Georgia, "Times New Roman", serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // 光晕 (多层偏移)
+            for (let i = 5; i > 0; i--) {
+                const a = Math.floor(100 * (1 - i/5) * alpha);
+                ctx.fillStyle = `rgba(${glowColor.r}, ${glowColor.g}, ${glowColor.b}, ${a/255})`;
+                for (let dx = -i; dx <= i; dx+=i*2) {
+                    for (let dy = -i; dy <= i; dy+=i*2) {
+                        ctx.fillText(text, dx, dy);
+                    }
+                }
+            }
+            // 主文字
+            ctx.fillStyle = `rgba(${mainColor.r}, ${mainColor.g}, ${mainColor.b}, ${alpha})`;
+            ctx.fillText(text, 0, 0);
+            ctx.restore();
+        }
+
+        // ---------- 绘制玫瑰 (纯Canvas) ----------
+        function drawRose(ctx, x, y, size = 1.0, alpha = 1.0) {
+            ctx.save();
+            ctx.translate(x, y);
+            const baseRed = 'rgba(200, 30, 50, '+alpha+')';
+            const darkRed = 'rgba(150, 10, 30, '+alpha+')';
+            const pink = 'rgba(255, 100, 150, '+alpha+')';
+            const green = 'rgba(34, 139, 34, '+alpha+')';
+            
+            // 茎
+            ctx.beginPath();
+            ctx.moveTo(0, 30*size);
+            ctx.lineTo(-5*size, 60*size);
+            ctx.lineTo(5*size, 60*size);
+            ctx.closePath();
+            ctx.fillStyle = green;
+            ctx.fill();
+            // 叶子
+            ctx.beginPath();
+            ctx.moveTo(-5*size, 45*size);
+            ctx.lineTo(-20*size, 40*size);
+            ctx.lineTo(-15*size, 55*size);
+            ctx.closePath();
+            ctx.fillStyle = green;
+            ctx.fill();
+            
+            // 花瓣
+            const angles = [0, 72, 144, 216, 288];
+            angles.forEach(deg => {
+                const rad = deg * Math.PI/180;
+                const px = Math.cos(rad)*18*size;
+                const py = Math.sin(rad)*15*size - 10*size;
+                ctx.beginPath();
+                ctx.arc(px, py, 12*size, 0, 2*Math.PI);
+                ctx.fillStyle = darkRed;
+                ctx.fill();
+            });
+            angles.forEach(deg => {
+                const rad = (deg+36) * Math.PI/180;
+                const px = Math.cos(rad)*10*size;
+                const py = Math.sin(rad)*8*size - 10*size;
+                ctx.beginPath();
+                ctx.arc(px, py, 10*size, 0, 2*Math.PI);
+                ctx.fillStyle = baseRed;
+                ctx.fill();
+            });
+            ctx.beginPath();
+            ctx.arc(0, -10*size, 6*size, 0, 2*Math.PI);
+            ctx.fillStyle = pink;
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(0, -12*size, 3*size, 0, 2*Math.PI);
+            ctx.fillStyle = 'rgba(255,200,200,'+alpha+')';
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // 绘制戒指
+        function drawRing(ctx, x, y, size = 1.0, alpha = 1.0) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.lineWidth = 4*size;
+            ctx.strokeStyle = `rgba(255, 223, 0, ${alpha})`;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 20*size, 10*size, 0, 0, 2*Math.PI);
+            ctx.stroke();
+            ctx.lineWidth = 2*size;
+            ctx.strokeStyle = `rgba(255, 240, 150, ${alpha})`;
+            ctx.stroke();
+            
+            ctx.fillStyle = `rgba(255, 223, 0, ${alpha})`;
+            ctx.beginPath();
+            ctx.roundRect(-8*size, -15*size, 16*size, 10*size, 3);
+            ctx.fill();
+            
+            ctx.fillStyle = `rgba(200, 230, 255, ${alpha})`;
+            ctx.beginPath();
+            ctx.moveTo(0, -30*size);
+            ctx.lineTo(10*size, -18*size);
+            ctx.lineTo(0, -12*size);
+            ctx.lineTo(-10*size, -18*size);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, -30*size);
+            ctx.lineTo(-5*size, -20*size);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, -30*size);
+            ctx.lineTo(5*size, -20*size);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // ---------- 帷幕绘制 ----------
+        function drawCurtains() {
+            // 夜空渐变
+            for (let y = 0; y < H; y++) {
+                const val = 10 + Math.floor(y/12);
+                const col = `rgb(${Math.max(0,val-5)}, ${Math.max(0,val-5)}, ${Math.min(50,val+10)})`;
+                ctx.fillStyle = col;
+                ctx.fillRect(0, y, W, 1);
+            }
+            stars.forEach(s => { s.twinkle(); s.draw(ctx); });
+            
+            const curtainW = W/2;
+            // 左幕
+            ctx.fillStyle = COLORS.CURTAIN_RED;
+            ctx.fillRect(leftCurtainX, 0, curtainW, H);
+            ctx.fillStyle = COLORS.CURTAIN_DARK;
+            for (let i=0; i<curtainW; i+=30) ctx.fillRect(leftCurtainX+i, 0, 10, H);
+            ctx.strokeStyle = COLORS.GOLDEN;
+            ctx.lineWidth = 3;
+            for (let i=0; i<curtainW; i+=15) {
+                ctx.beginPath();
+                ctx.moveTo(leftCurtainX+i, H-10);
+                ctx.lineTo(leftCurtainX+i+5, H-25);
+                ctx.stroke();
+            }
+            ctx.fillStyle = COLORS.GOLDEN;
+            ctx.fillRect(leftCurtainX, 0, curtainW, 8);
+            
+            // 右幕
+            ctx.fillStyle = COLORS.CURTAIN_RED;
+            ctx.fillRect(rightCurtainX, 0, curtainW, H);
+            ctx.fillStyle = COLORS.CURTAIN_DARK;
+            for (let i=0; i<curtainW; i+=30) ctx.fillRect(rightCurtainX+i, 0, 10, H);
+            for (let i=0; i<curtainW; i+=15) {
+                ctx.beginPath();
+                ctx.moveTo(rightCurtainX+i, H-10);
+                ctx.lineTo(rightCurtainX+i+5, H-25);
+                ctx.stroke();
+            }
+            ctx.fillStyle = COLORS.GOLDEN;
+            ctx.fillRect(rightCurtainX, 0, curtainW, 8);
+        }
+
+        // ---------- 事件监听 ----------
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            mouseX = (e.clientX - rect.left) * scaleX;
+            mouseY = (e.clientY - rect.top) * scaleY;
+            if (state === STATE_TEXT) buttons.forEach(b => b.handleMove(mouseX, mouseY));
+        });
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const mx = (e.clientX - rect.left) * scaleX;
+            const my = (e.clientY - rect.top) * scaleY;
+            if (state === STATE_TEXT) {
+                buttons.forEach(b => {
+                    if (b.handleClick(mx, my)) {
+                        showHeartFeedback = true;
+                        heartTimer = 30;
+                        heartPos = { x: b.rect.x + b.rect.w/2, y: b.rect.y + b.rect.h/2 };
+                        showGift = true;
+                    }
+                });
+            }
+        });
+
+        // ---------- 动画循环 ----------
+        function updateAndDraw() {
+            // 状态机逻辑
+            if (state === STATE_CURTAIN) {
+                drawCurtains();
+                if (!curtainOpen) {
+                    leftCurtainX -= curtainSpeed;
+                    rightCurtainX += curtainSpeed;
+                    if (leftCurtainX <= -W/2) {
+                        curtainOpen = true;
+                        state = STATE_FIREWORKS;
+                        stateStartTime = performance.now();
+                    }
+                }
+            } else if (state === STATE_FIREWORKS) {
+                // 背景
+                for (let y=0; y<H; y++) {
+                    const val = 5 + Math.floor(y/15);
+                    ctx.fillStyle = `rgb(${Math.max(0,val-3)}, ${Math.max(0,val-3)}, ${Math.min(40,val+5)})`;
+                    ctx.fillRect(0, y, W, 1);
+                }
+                stars.forEach(s => { s.twinkle(); s.draw(ctx); });
+                
+                fireworkTimer++;
+                if (fireworkTimer >= FIREWORK_INTERVAL && fireworks.length < MAX_FIREWORKS) {
+                    fireworks.push(new GlitterFirework());
+                    fireworkTimer = 0;
+                }
+                fireworks = fireworks.filter(fw => fw.update());
+                fireworks.forEach(fw => fw.draw(ctx));
+                
+                if (performance.now() - stateStartTime > 8000) {
+                    state = STATE_TEXT;
+                    fireworks = [];
+                }
+            } else if (state === STATE_TEXT) {
+                // 深色背景
+                for (let y=0; y<H; y++) {
+                    ctx.fillStyle = `rgb(${10+Math.floor(y/20)}, ${8+Math.floor(y/25)}, ${25+Math.floor(y/15)})`;
+                    ctx.fillRect(0, y, W, 1);
+                }
+                stars.forEach(s => { s.twinkle(); s.draw(ctx); });
+                
+                if (textAlpha < 1.0) textAlpha = Math.min(1.0, textAlpha + 0.012);
+                else {
+                    heartbeat++;
+                    floatOffset = Math.sin(heartbeat * 0.015) * 5;
+                    textScale = 1.0 + 0.02 * Math.sin(heartbeat * 0.02);
+                }
+                
+                // 主文字
+                drawGlowText(ctx, 'I LOVE U', W/2, H/2 - 50 + floatOffset, 130, 
+                    {r:230,g:140,b:140}, {r:255,g:235,b:180}, textAlpha, textScale);
+                // 副标题
+                if (textAlpha > 0.3) {
+                    const subAlpha = Math.min(1.0, (textAlpha - 0.3) * 2.5);
+                    drawGlowText(ctx, 'Do you love me?', W/2, H/2 + 40, 52, 
+                        {r:255,g:200,b:200}, {r:255,g:240,b:245}, subAlpha, 1.0);
+                }
+                
+                // 戒指玫瑰淡入
+                if (showGift) {
+                    if (giftAlpha < 1.0) giftAlpha = Math.min(1.0, giftAlpha + 0.02);
+                    const giftYOffset = Math.sin(heartbeat * 0.02) * 5;
+                    drawRose(ctx, W/2 - 100, H - 100 + giftYOffset, 1.2, giftAlpha);
+                    drawRing(ctx, W/2 + 100, H - 120 + giftYOffset, 1.2, giftAlpha);
+                }
+                
+                // 按钮
+                if (textAlpha >= 1.0) {
+                    buttons.forEach(b => { b.update(); b.draw(ctx); });
+                    if (showHeartFeedback) {
+                        ctx.font = '80px Georgia, serif';
+                        ctx.fillStyle = '#FF6464';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('❤️', heartPos.x, heartPos.y - 50);
+                        heartTimer--;
+                        if (heartTimer <= 0) showHeartFeedback = false;
+                    }
+                }
+                
+                // 碎钻星光
+                if (Math.random() < 0.12) {
+                    for (let i=0; i<2; i++) {
+                        const x = W/2 - 100 + Math.random()*200;
+                        const y = H/2 - 80 + Math.random()*160;
+                        ctx.beginPath();
+                        ctx.arc(x, y, 1+Math.random()*2, 0, 2*Math.PI);
+                        ctx.fillStyle = `rgba(255,240,200,${0.4+Math.random()*0.4})`;
+                        ctx.fill();
+                    }
+                }
+            }
+            requestAnimationFrame(updateAndDraw);
+        }
+
+        // 启动
+        stateStartTime = performance.now();
+        requestAnimationFrame(updateAndDraw);
+    })();
+</script>
+</body>
+</html>
