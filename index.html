@@ -116,6 +116,7 @@
         // 获取画布和上下文
         const canvas = document.getElementById('romanticCanvas');
         const ctx = canvas.getContext('2d');
+        let pixelRatio = window.devicePixelRatio || 1;
         
         // 移除加载提示
         const loadingEl = document.querySelector('.loading');
@@ -130,7 +131,7 @@
             const containerHeight = container.clientHeight;
             
             // 设置画布尺寸（考虑设备像素比）
-            const pixelRatio = window.devicePixelRatio || 1;
+            pixelRatio = window.devicePixelRatio || 1;
             canvas.width = containerWidth * pixelRatio;
             canvas.height = containerHeight * pixelRatio;
             
@@ -154,6 +155,8 @@
             size = resizeCanvas();
             W = size.width;
             H = size.height;
+            initButtons(); // 重新初始化按钮
+            initParticles(); // 重新初始化粒子
         });
 
         // ---------- 全局参数 ----------
@@ -186,6 +189,7 @@
         let textScale = 1.0;
         let floatOffset = 0.0;
         let heartbeat = 0;
+        let secondTextAlpha = 0;
 
         // 按钮
         let buttons = [];
@@ -536,6 +540,14 @@
                     this.clicked = true;
                     this.clickTimer = 8; // 缩短点击反馈时间
                     this.current = this.click;
+                    
+                    // 触发爱心反馈和礼物显示
+                    showHeartFeedback = true;
+                    heartTimer = 20;
+                    heartPos = { x: this.rect.x + this.rect.w/2, y: this.rect.y + this.rect.h/2 };
+                    showGift = true;
+                    giftRevealed = true;
+                    
                     return true;
                 }
                 return false;
@@ -618,15 +630,15 @@
             const spacing = W * 0.05; // 间距基于屏幕宽度
             
             const startX = (W - (btnW*2 + spacing)) / 2;
-            const btnY = H - btnH - H * 0.1; // 按钮位置
-            const btn1 = new CanvasButton(startX, btnY, btnW, btnH, 'Yes, I Do!', '#C85064', '#E68C96', '#A03246');
-            const btn2 = new CanvasButton(startX + btnW + spacing, btnY, btnW, btnH, 'Forever!', '#C85064', '#E68C96', '#A03246');
+            const btnY = H - btnH - H * 0.25; // 按钮位置上移 - 修改这里
+            // 两个按钮都显示"Yes"
+            const btn1 = new CanvasButton(startX, btnY, btnW, btnH, 'Yes', '#C85064', '#E68C96', '#A03246');
+            const btn2 = new CanvasButton(startX + btnW + spacing, btnY, btnW, btnH, 'Yes', '#C85064', '#E68C96', '#A03246');
             buttons = [btn1, btn2];
         }
 
         // ---------- 简化的文字绘制（无发光效果） ----------
         function drawSimpleText(ctx, text, x, y, fontSize, color, alpha = 1.0, scale = 1.0, offsetY = 0) {
-            if (giftRevealed) return;
             ctx.save();
             ctx.translate(x, y + offsetY);
             ctx.scale(scale, scale);
@@ -805,8 +817,8 @@
             
             let clientX, clientY;
             if (e.type.includes('touch')) {
-                clientX = e.touches[0].clientX;
-                clientY = e.touches[0].clientY;
+                clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                clientY = e.touches ? e.touches[0].clientY : e.clientY;
             } else {
                 clientX = e.clientX;
                 clientY = e.clientY;
@@ -818,76 +830,48 @@
             };
         }
         
-        // 触摸事件处理
-        canvas.addEventListener('touchstart', handleTouchStart);
-        canvas.addEventListener('touchmove', handleTouchMove);
-        canvas.addEventListener('touchend', handleTouchEnd);
-        
-        // 鼠标事件处理（兼容性）
-        canvas.addEventListener('mousedown', handleMouseDown);
-        canvas.addEventListener('mousemove', handleMouseMove);
-        canvas.addEventListener('mouseup', handleMouseUp);
-        
-        function handleTouchStart(e) {
+        // 事件处理器
+        function handlePointerDown(e) {
             e.preventDefault();
             isTouching = true;
             const pos = getTouchPos(e);
             touchX = pos.x;
             touchY = pos.y;
             
-            if (state === STATE_TEXT) {
+            if (state === STATE_TEXT && buttons.length > 0) {
                 buttons.forEach(b => {
-                    if (b.handleClick(touchX, touchY)) {
-                        showHeartFeedback = true;
-                        heartTimer = 20;
-                        heartPos = { x: b.rect.x + b.rect.w/2, y: b.rect.y + b.rect.h/2 };
-                        showGift = true;
-                        giftRevealed = true;
-                    }
+                    b.handleClick(touchX, touchY);
                 });
             }
         }
         
-        function handleTouchMove(e) {
+        function handlePointerMove(e) {
             e.preventDefault();
             const pos = getTouchPos(e);
             touchX = pos.x;
             touchY = pos.y;
-            if (state === STATE_TEXT) buttons.forEach(b => b.handleMove(touchX, touchY));
+            if (state === STATE_TEXT && buttons.length > 0) {
+                buttons.forEach(b => b.handleMove(touchX, touchY));
+            }
         }
         
-        function handleTouchEnd(e) {
+        function handlePointerUp(e) {
             e.preventDefault();
             isTouching = false;
         }
         
-        function handleMouseDown(e) {
-            const pos = getTouchPos(e);
-            touchX = pos.x;
-            touchY = pos.y;
+        // 添加事件监听器
+        function addEventListeners() {
+            // 触摸事件处理
+            canvas.addEventListener('touchstart', handlePointerDown);
+            canvas.addEventListener('touchmove', handlePointerMove);
+            canvas.addEventListener('touchend', handlePointerUp);
             
-            if (state === STATE_TEXT) {
-                buttons.forEach(b => {
-                    if (b.handleClick(touchX, touchY)) {
-                        showHeartFeedback = true;
-                        heartTimer = 20;
-                        heartPos = { x: b.rect.x + b.rect.w/2, y: b.rect.y + b.rect.h/2 };
-                        showGift = true;
-                        giftRevealed = true;
-                    }
-                });
-            }
-        }
-        
-        function handleMouseMove(e) {
-            const pos = getTouchPos(e);
-            touchX = pos.x;
-            touchY = pos.y;
-            if (state === STATE_TEXT) buttons.forEach(b => b.handleMove(touchX, touchY));
-        }
-        
-        function handleMouseUp(e) {
-            // 不需要特殊处理
+            // 鼠标事件处理（兼容性）
+            canvas.addEventListener('mousedown', handlePointerDown);
+            canvas.addEventListener('mousemove', handlePointerMove);
+            canvas.addEventListener('mouseup', handlePointerUp);
+            canvas.addEventListener('mouseleave', handlePointerUp);
         }
 
         // ---------- 动画循环 ----------
@@ -937,12 +921,24 @@
                         floatOffset = Math.sin(heartbeat * 0.01) * 3; // 减小浮动幅度
                         textScale = 1.0 + 0.01 * Math.sin(heartbeat * 0.015); // 减小缩放幅度
                     }
+                    
+                    // 第二行文字淡入
+                    if (textAlpha > 0.5 && secondTextAlpha < 1.0) {
+                        secondTextAlpha = Math.min(1.0, secondTextAlpha + 0.008);
+                    }
                 }
                 
                 // 主文字 - 简化的金色文字，无发光效果
                 const mainFontSize = Math.max(40, Math.min(70, W/8));
                 drawSimpleText(ctx, 'I LOVE YOU', W/2, H * 0.15 + floatOffset, mainFontSize, 
                     {r:255,g:215,b:0}, textAlpha, textScale);
+                
+                // 第二行文字 - "do you love me" - 在I LOVE YOU下面
+                if (secondTextAlpha > 0) {
+                    const secondFontSize = Math.max(24, Math.min(36, W/12));
+                    drawSimpleText(ctx, 'do you love me', W/2, H * 0.15 + mainFontSize/2 + 20, secondFontSize, 
+                        {r:255,g:255,b:255}, secondTextAlpha, 1.0);
+                }
                 
                 // 中央展示区：戒指和玫瑰
                 if (showGift) {
@@ -1031,7 +1027,16 @@
         function init() {
             initParticles();
             initButtons();
+            addEventListeners(); // 添加事件监听器
             stateStartTime = performance.now();
+            
+            // 隐藏加载提示
+            if (loadingEl) {
+                setTimeout(() => {
+                    loadingEl.style.display = 'none';
+                }, 500);
+            }
+            
             requestAnimationFrame(updateAndDraw);
         }
 
