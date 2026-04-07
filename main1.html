@@ -513,11 +513,12 @@
             return this;
         };
 
+        // 按钮配置 - 位置上移，两个按钮都显示"Yes"
         const btnW = 180, btnH = 70, spacing = 50;
         const startX = (W - (btnW*2 + spacing)) / 2;
-        const btnY = H - 120;
-        const btn1 = new CanvasButton(startX, btnY, btnW, btnH, 'Yes, I Do!', '#C85064', '#E68C96', '#A03246');
-        const btn2 = new CanvasButton(startX + btnW + spacing, btnY, btnW, btnH, 'Forever!', '#C85064', '#E68C96', '#A03246');
+        const btnY = H - 200; // 上移按钮位置
+        const btn1 = new CanvasButton(startX, btnY, btnW, btnH, 'Yes', '#C85064', '#E68C96', '#A03246');
+        const btn2 = new CanvasButton(startX + btnW + spacing, btnY, btnW, btnH, 'Yes', '#C85064', '#E68C96', '#A03246');
         buttons = [btn1, btn2];
 
         // ---------- 文字绘制 ----------
