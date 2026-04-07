@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>✨ Romantic Fireworks · I LOVE U ✨</title>
+    <title>✨ Romantic Universe · Eternal Love ✨</title>
     <style>
         * {
             margin: 0;
@@ -11,30 +11,48 @@
             box-sizing: border-box;
         }
         body {
-            background: #0a0a1a;
+            background: linear-gradient(to bottom, #0a0a1a 0%, #1a0a2a 50%, #0a1a2a 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
             font-family: 'Georgia', 'Times New Roman', 'Palatino', serif;
+            overflow: hidden;
+            color: #fff;
         }
         .canvas-wrapper {
             border-radius: 24px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 0 2px #3a2a2a inset;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 
+                        0 0 0 2px rgba(255, 215, 0, 0.3) inset,
+                        0 0 40px rgba(255, 20, 147, 0.4);
             overflow: hidden;
             display: inline-block;
+            position: relative;
+            border: 1px solid rgba(255, 215, 0, 0.2);
         }
         canvas {
             display: block;
-            width: 800px;
-            height: 600px;
+            width: 900px;
+            height: 650px;
             cursor: pointer;
+        }
+        .instructions {
+            position: absolute;
+            bottom: 15px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+            z-index: 10;
+            font-style: italic;
         }
     </style>
 </head>
 <body>
 <div class="canvas-wrapper">
-    <canvas id="romanticCanvas" width="800" height="600"></canvas>
+    <canvas id="romanticCanvas" width="900" height="650"></canvas>
+    <div class="instructions">点击"Yes"按钮接收永恒之爱</div>
 </div>
 <script>
     (function(){
@@ -42,7 +60,7 @@
 
         const canvas = document.getElementById('romanticCanvas');
         const ctx = canvas.getContext('2d');
-        const W = 800, H = 600;
+        const W = 900, H = 650;
 
         // ---------- 全局参数 ----------
         const STATE_CURTAIN = 0;
@@ -53,19 +71,21 @@
         // 帷幕
         let leftCurtainX = 0;
         let rightCurtainX = W / 2;
-        const curtainSpeed = 4;
+        const curtainSpeed = 5;
         let curtainOpen = false;
 
         // 烟花计时
         let fireworkTimer = 0;
         const FIREWORK_INTERVAL = 25;
-        const MAX_FIREWORKS = 12;
+        const MAX_FIREWORKS = 15;
         let fireworks = [];
-        let stateStartTime = 0; // 用于8秒切换
+        let stateStartTime = 0;
 
-        // 星星
-        let stars = [];
-        const STARS_COUNT = 150;
+        // 宇宙粒子
+        let cosmicParticles = [];
+        const COSMIC_PARTICLES_COUNT = 300;
+        let nebulae = [];
+        const NEBULAE_COUNT = 3;
 
         // 文字动画
         let textAlpha = 0;
@@ -79,13 +99,15 @@
         let heartTimer = 0;
         let heartPos = { x: 0, y: 0 };
 
-        // 戒指玫瑰
+        // 礼物（戒指和玫瑰）
         let showGift = false;
         let giftAlpha = 0;
+        let giftRevealed = false;
+        let roseFloatOffset = 0;
+        let ringFloatOffset = 0;
 
-        // 鼠标位置 (用于按钮hover)
+        // 鼠标位置
         let mouseX = 0, mouseY = 0;
-        let mousePressed = false;
 
         // ---------- 辅助函数：颜色 ----------
         const COLORS = {
@@ -101,10 +123,132 @@
             BLUE: '#1E90FF',
             PURPLE: '#BA55D3',
             ROSE: '#C81E32',
-            LEAF: '#228B22'
+            LEAF: '#228B22',
+            STARLIGHT: '#E6E6FA',
+            NEBULA_PINK: '#FF1493',
+            NEBULA_BLUE: '#4169E1',
+            NEBULA_PURPLE: '#9370DB'
         };
 
-        // ---------- 粒子系统 (华丽烟花) ----------
+        // ---------- 宇宙粒子系统 ----------
+        class CosmicParticle {
+            constructor() {
+                this.x = Math.random() * W;
+                this.y = Math.random() * H;
+                this.size = 0.5 + Math.random() * 2.5;
+                this.speed = 0.1 + Math.random() * 0.5;
+                this.brightness = 50 + Math.floor(Math.random() * 206);
+                this.twinkleSpeed = 0.01 + Math.random() * 0.03;
+                this.twinklePhase = Math.random() * Math.PI * 2;
+                this.type = Math.random() > 0.9 ? 'sparkle' : 'star';
+                this.color = this.getColor();
+            }
+            
+            getColor() {
+                const colors = [
+                    {r: 255, g: 255, b: 255},
+                    {r: 255, g: 250, b: 205},
+                    {r: 230, g: 230, b: 250},
+                    {r: 176, g: 224, b: 230},
+                    {r: 255, g: 228, b: 225}
+                ];
+                return colors[Math.floor(Math.random() * colors.length)];
+            }
+            
+            update() {
+                this.twinklePhase += this.twinkleSpeed;
+                this.brightness = 80 + Math.sin(this.twinklePhase) * 100;
+                this.brightness = Math.max(30, Math.min(255, this.brightness));
+                
+                // 缓慢移动
+                this.x += Math.sin(this.twinklePhase * 0.5) * 0.1;
+                this.y += Math.cos(this.twinklePhase * 0.3) * 0.1;
+                
+                // 边界检查
+                if (this.x < 0) this.x = W;
+                if (this.x > W) this.x = 0;
+                if (this.y < 0) this.y = H;
+                if (this.y > H) this.y = 0;
+            }
+            
+            draw(ctx) {
+                const alpha = this.brightness / 255;
+                
+                if (this.type === 'sparkle') {
+                    // 闪烁的星星
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${alpha})`;
+                    ctx.fill();
+                    
+                    // 星光效果
+                    ctx.beginPath();
+                    ctx.moveTo(this.x - this.size * 3, this.y);
+                    ctx.lineTo(this.x + this.size * 3, this.y);
+                    ctx.moveTo(this.x, this.y - this.size * 3);
+                    ctx.lineTo(this.x, this.y + this.size * 3);
+                    ctx.strokeStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${alpha * 0.5})`;
+                    ctx.lineWidth = 0.5;
+                    ctx.stroke();
+                } else {
+                    // 普通星星
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${alpha})`;
+                    ctx.fill();
+                }
+            }
+        }
+
+        // ---------- 星云 ----------
+        class Nebula {
+            constructor() {
+                this.x = Math.random() * W;
+                this.y = Math.random() * H;
+                this.size = 100 + Math.random() * 200;
+                this.color = this.getColor();
+                this.density = 0.3 + Math.random() * 0.4;
+                this.pulseSpeed = 0.002 + Math.random() * 0.003;
+                this.pulsePhase = Math.random() * Math.PI * 2;
+            }
+            
+            getColor() {
+                const colors = [
+                    {r: 255, g: 20, b: 147, a: 0.03},  // 深粉色
+                    {r: 65, g: 105, b: 225, a: 0.04},   // 皇家蓝
+                    {r: 147, g: 112, b: 219, a: 0.035}, // 中紫色
+                    {r: 72, g: 61, b: 139, a: 0.04},    // 暗蓝紫色
+                    {r: 123, g: 104, b: 238, a: 0.03}   // 中石板蓝
+                ];
+                return colors[Math.floor(Math.random() * colors.length)];
+            }
+            
+            update() {
+                this.pulsePhase += this.pulseSpeed;
+            }
+            
+            draw(ctx) {
+                const pulse = 0.8 + Math.sin(this.pulsePhase) * 0.2;
+                const currentSize = this.size * pulse;
+                
+                // 创建径向渐变
+                const gradient = ctx.createRadialGradient(
+                    this.x, this.y, 0,
+                    this.x, this.y, currentSize
+                );
+                
+                gradient.addColorStop(0, `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${this.color.a})`);
+                gradient.addColorStop(0.7, `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${this.color.a * 0.5})`);
+                gradient.addColorStop(1, `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, 0)`);
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, currentSize, 0, Math.PI * 2);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+            }
+        }
+
+        // ---------- 烟花粒子系统 ----------
         class SparkleParticle {
             constructor(x, y, color, vx, vy, lifetime, gravity = 0.08, size = 3, trail = false) {
                 this.x = x; this.y = y;
@@ -133,7 +277,6 @@
                 const alpha = Math.max(0, 255 - Math.floor(255 * this.age / this.lifetime));
                 const currentSize = Math.max(1, Math.floor(this.size * (1 - this.age / this.lifetime) + 2));
                 
-                // 拖尾
                 if (this.trail && this.prevPositions.length > 1) {
                     for (let i = 0; i < this.prevPositions.length; i++) {
                         const pos = this.prevPositions[i];
@@ -146,12 +289,10 @@
                     }
                 }
                 
-                // 光晕
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, currentSize * 2, 0, Math.PI * 2);
                 ctx.fillStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${alpha / 3 / 255})`;
                 ctx.fill();
-                // 核心
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, currentSize, 0, Math.PI * 2);
                 ctx.fillStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${alpha / 255})`;
@@ -201,7 +342,7 @@
                     return this.particles.length > 0 || this.secondaryParticles.length > 0;
                 }
             }
-            explod() {
+            explode() {
                 const num = 80 + Math.floor(Math.random() * 41);
                 for (let i = 0; i < num; i++) {
                     let angle, speed;
@@ -212,7 +353,7 @@
                         angle = Math.random() * 2 * Math.PI;
                         speed = 5 + Math.random() * 3;
                         angle += (Math.random() - 0.5) * 0.4;
-                    } else { // heart
+                    } else {
                         const t = Math.random() * 2 * Math.PI;
                         const x = 16 * Math.pow(Math.sin(t), 3);
                         const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t);
@@ -265,30 +406,16 @@
             }
         }
 
-        // ---------- 星星 ----------
-        class Star {
-            constructor() {
-                this.x = Math.random() * W;
-                this.y = Math.random() * H;
-                this.brightness = 50 + Math.floor(Math.random() * 206);
-                this.size = 1 + Math.floor(Math.random() * 2);
-            }
-            twinkle() {
-                this.brightness += Math.floor(Math.random() * 31) - 15;
-                this.brightness = Math.max(30, Math.min(255, this.brightness));
-            }
-            draw(ctx) {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
-                ctx.fillStyle = `rgb(${this.brightness}, ${this.brightness}, ${this.brightness})`;
-                ctx.fill();
-            }
+        // ---------- 初始化宇宙粒子 ----------
+        for (let i = 0; i < COSMIC_PARTICLES_COUNT; i++) {
+            cosmicParticles.push(new CosmicParticle());
+        }
+        
+        for (let i = 0; i < NEBULAE_COUNT; i++) {
+            nebulae.push(new Nebula());
         }
 
-        // ---------- 初始化星星 ----------
-        for (let i = 0; i < STARS_COUNT; i++) stars.push(new Star());
-
-        // ---------- 按钮类 (Canvas内绘制) ----------
+        // ---------- 按钮类 ----------
         class CanvasButton {
             constructor(x, y, w, h, text, normalColor, hoverColor, clickColor) {
                 this.rect = { x, y, w, h };
@@ -299,14 +426,18 @@
                 this.current = normalColor;
                 this.clicked = false;
                 this.clickTimer = 0;
+                this.glow = 0;
+                this.glowDirection = 1;
             }
             checkHover(mx, my) {
                 return mx >= this.rect.x && mx <= this.rect.x + this.rect.w && my >= this.rect.y && my <= this.rect.y + this.rect.h;
             }
             handleMove(mx, my) {
+                if (giftRevealed) return;
                 this.current = this.checkHover(mx, my) ? this.hover : this.normal;
             }
             handleClick(mx, my) {
+                if (giftRevealed) return false;
                 if (this.checkHover(mx, my)) {
                     this.clicked = true;
                     this.clickTimer = 10;
@@ -323,20 +454,37 @@
                         this.current = this.normal;
                     }
                 }
+                
+                // 按钮发光效果
+                if (!giftRevealed) {
+                    this.glow += 0.05 * this.glowDirection;
+                    if (this.glow > 1) {
+                        this.glow = 1;
+                        this.glowDirection = -1;
+                    } else if (this.glow < 0.3) {
+                        this.glow = 0.3;
+                        this.glowDirection = 1;
+                    }
+                }
             }
             draw(ctx) {
-                // 圆角矩形
+                if (giftRevealed) return;
+                
+                // 按钮背景
                 ctx.fillStyle = this.current;
                 ctx.shadowColor = '#FFD700';
-                ctx.shadowBlur = 8;
+                ctx.shadowBlur = 8 + this.glow * 8;
                 ctx.beginPath();
                 ctx.roundRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h, 15);
                 ctx.fill();
                 ctx.shadowBlur = 0;
+                
+                // 按钮边框
                 ctx.strokeStyle = '#FFD700';
                 ctx.lineWidth = 2;
                 ctx.stroke();
                 
+                // 按钮文字
                 ctx.font = 'bold 48px Georgia, "Times New Roman", serif';
                 ctx.fillStyle = '#FFFFFF';
                 ctx.shadowColor = '#500000';
@@ -350,7 +498,6 @@
             }
         }
 
-        // 扩展 CanvasRenderingContext2D 画圆角矩形
         CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
             if (w < 2 * r) r = w / 2;
             if (h < 2 * r) r = h / 2;
@@ -366,16 +513,16 @@
             return this;
         };
 
-        // 创建两个Yes按钮
-        const btnW = 150, btnH = 60, spacing = 40;
+        const btnW = 180, btnH = 70, spacing = 50;
         const startX = (W - (btnW*2 + spacing)) / 2;
-        const btnY = H/2 + 120;
-        const btn1 = new CanvasButton(startX, btnY, btnW, btnH, 'Yes', '#C85064', '#E68C96', '#A03246');
-        const btn2 = new CanvasButton(startX + btnW + spacing, btnY, btnW, btnH, 'Yes', '#C85064', '#E68C96', '#A03246');
+        const btnY = H - 120;
+        const btn1 = new CanvasButton(startX, btnY, btnW, btnH, 'Yes, I Do!', '#C85064', '#E68C96', '#A03246');
+        const btn2 = new CanvasButton(startX + btnW + spacing, btnY, btnW, btnH, 'Forever!', '#C85064', '#E68C96', '#A03246');
         buttons = [btn1, btn2];
 
-        // ---------- 绘制文字(发光) ----------
+        // ---------- 文字绘制 ----------
         function drawGlowText(ctx, text, x, y, fontSize, mainColor, glowColor, alpha = 1.0, scale = 1.0, offsetY = 0) {
+            if (giftRevealed) return;
             ctx.save();
             ctx.translate(x, y + offsetY);
             ctx.scale(scale, scale);
@@ -383,9 +530,9 @@
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
-            // 光晕 (多层偏移)
-            for (let i = 5; i > 0; i--) {
-                const a = Math.floor(100 * (1 - i/5) * alpha);
+            // 多层发光效果
+            for (let i = 8; i > 0; i--) {
+                const a = Math.floor(80 * (1 - i/8) * alpha);
                 ctx.fillStyle = `rgba(${glowColor.r}, ${glowColor.g}, ${glowColor.b}, ${a/255})`;
                 for (let dx = -i; dx <= i; dx+=i*2) {
                     for (let dy = -i; dy <= i; dy+=i*2) {
@@ -393,125 +540,215 @@
                     }
                 }
             }
+            
             // 主文字
             ctx.fillStyle = `rgba(${mainColor.r}, ${mainColor.g}, ${mainColor.b}, ${alpha})`;
             ctx.fillText(text, 0, 0);
             ctx.restore();
         }
 
-        // ---------- 绘制玫瑰 (纯Canvas) ----------
-        function drawRose(ctx, x, y, size = 1.0, alpha = 1.0) {
+        // ---------- 写实玫瑰 ----------
+        function drawRealisticRose(ctx, x, y, size = 1.0, alpha = 1.0) {
             ctx.save();
             ctx.translate(x, y);
-            const baseRed = 'rgba(200, 30, 50, '+alpha+')';
-            const darkRed = 'rgba(150, 10, 30, '+alpha+')';
-            const pink = 'rgba(255, 100, 150, '+alpha+')';
-            const green = 'rgba(34, 139, 34, '+alpha+')';
             
-            // 茎
+            // 花茎
             ctx.beginPath();
-            ctx.moveTo(0, 30*size);
-            ctx.lineTo(-5*size, 60*size);
-            ctx.lineTo(5*size, 60*size);
-            ctx.closePath();
-            ctx.fillStyle = green;
-            ctx.fill();
+            ctx.moveTo(0, 40 * size);
+            ctx.lineTo(0, 120 * size);
+            ctx.lineWidth = 8 * size;
+            ctx.strokeStyle = `rgba(34, 139, 34, ${alpha})`;
+            ctx.stroke();
+            
             // 叶子
             ctx.beginPath();
-            ctx.moveTo(-5*size, 45*size);
-            ctx.lineTo(-20*size, 40*size);
-            ctx.lineTo(-15*size, 55*size);
+            ctx.moveTo(0, 80 * size);
+            ctx.quadraticCurveTo(-25 * size, 70 * size, -35 * size, 90 * size);
+            ctx.quadraticCurveTo(-20 * size, 95 * size, 0, 85 * size);
             ctx.closePath();
-            ctx.fillStyle = green;
+            ctx.fillStyle = `rgba(50, 205, 50, ${alpha})`;
             ctx.fill();
             
-            // 花瓣
-            const angles = [0, 72, 144, 216, 288];
-            angles.forEach(deg => {
-                const rad = deg * Math.PI/180;
-                const px = Math.cos(rad)*18*size;
-                const py = Math.sin(rad)*15*size - 10*size;
-                ctx.beginPath();
-                ctx.arc(px, py, 12*size, 0, 2*Math.PI);
-                ctx.fillStyle = darkRed;
-                ctx.fill();
-            });
-            angles.forEach(deg => {
-                const rad = (deg+36) * Math.PI/180;
-                const px = Math.cos(rad)*10*size;
-                const py = Math.sin(rad)*8*size - 10*size;
-                ctx.beginPath();
-                ctx.arc(px, py, 10*size, 0, 2*Math.PI);
-                ctx.fillStyle = baseRed;
-                ctx.fill();
-            });
             ctx.beginPath();
-            ctx.arc(0, -10*size, 6*size, 0, 2*Math.PI);
-            ctx.fillStyle = pink;
+            ctx.moveTo(0, 90 * size);
+            ctx.quadraticCurveTo(25 * size, 80 * size, 35 * size, 100 * size);
+            ctx.quadraticCurveTo(20 * size, 105 * size, 0, 95 * size);
+            ctx.closePath();
+            ctx.fillStyle = `rgba(60, 179, 113, ${alpha})`;
             ctx.fill();
+            
+            // 花蕾外层花瓣
+            const petals = 8;
+            for (let i = 0; i < petals; i++) {
+                const angle = (i / petals) * Math.PI * 2;
+                const petalSize = 20 * size;
+                
+                ctx.save();
+                ctx.rotate(angle);
+                
+                // 花瓣渐变
+                const gradient = ctx.createRadialGradient(
+                    0, -15 * size, 0,
+                    0, -15 * size, petalSize
+                );
+                gradient.addColorStop(0, `rgba(220, 20, 60, ${alpha})`);
+                gradient.addColorStop(0.7, `rgba(255, 105, 180, ${alpha * 0.8})`);
+                gradient.addColorStop(1, `rgba(255, 182, 193, 0)`);
+                
+                ctx.beginPath();
+                ctx.ellipse(0, -15 * size, petalSize, petalSize * 0.7, 0, 0, Math.PI * 2);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                
+                ctx.restore();
+            }
+            
+            // 花蕾内层花瓣
+            for (let i = 0; i < 5; i++) {
+                const angle = (i / 5) * Math.PI * 2;
+                const petalSize = 12 * size;
+                
+                ctx.save();
+                ctx.rotate(angle + 0.2);
+                
+                const gradient = ctx.createRadialGradient(
+                    0, -10 * size, 0,
+                    0, -10 * size, petalSize
+                );
+                gradient.addColorStop(0, `rgba(255, 20, 147, ${alpha})`);
+                gradient.addColorStop(0.8, `rgba(255, 182, 193, ${alpha * 0.7})`);
+                gradient.addColorStop(1, `rgba(255, 240, 245, 0)`);
+                
+                ctx.beginPath();
+                ctx.ellipse(0, -10 * size, petalSize, petalSize * 0.8, 0, 0, Math.PI * 2);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                
+                ctx.restore();
+            }
+            
+            // 花蕊
             ctx.beginPath();
-            ctx.arc(0, -12*size, 3*size, 0, 2*Math.PI);
-            ctx.fillStyle = 'rgba(255,200,200,'+alpha+')';
+            ctx.arc(0, 0, 5 * size, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
             ctx.fill();
+            
+            // 花蕊细节
+            for (let i = 0; i < 12; i++) {
+                const angle = (i / 12) * Math.PI * 2;
+                const length = 8 * size;
+                
+                ctx.beginPath();
+                ctx.moveTo(
+                    Math.cos(angle) * 5 * size,
+                    Math.sin(angle) * 5 * size
+                );
+                ctx.lineTo(
+                    Math.cos(angle) * (5 + length) * size,
+                    Math.sin(angle) * (5 + length) * size
+                );
+                ctx.strokeStyle = `rgba(255, 140, 0, ${alpha})`;
+                ctx.lineWidth = 2 * size;
+                ctx.stroke();
+            }
+            
             ctx.restore();
         }
 
-        // 绘制戒指
-        function drawRing(ctx, x, y, size = 1.0, alpha = 1.0) {
+        // ---------- 写实戒指 ----------
+        function drawRealisticRing(ctx, x, y, size = 1.0, alpha = 1.0) {
             ctx.save();
             ctx.translate(x, y);
-            ctx.lineWidth = 4*size;
-            ctx.strokeStyle = `rgba(255, 223, 0, ${alpha})`;
-            ctx.beginPath();
-            ctx.ellipse(0, 0, 20*size, 10*size, 0, 0, 2*Math.PI);
-            ctx.stroke();
-            ctx.lineWidth = 2*size;
-            ctx.strokeStyle = `rgba(255, 240, 150, ${alpha})`;
-            ctx.stroke();
             
-            ctx.fillStyle = `rgba(255, 223, 0, ${alpha})`;
+            // 戒指环
+            const ringGradient = ctx.createLinearGradient(-25 * size, 0, 25 * size, 0);
+            ringGradient.addColorStop(0, `rgba(218, 165, 32, ${alpha})`);
+            ringGradient.addColorStop(0.5, `rgba(255, 215, 0, ${alpha})`);
+            ringGradient.addColorStop(1, `rgba(218, 165, 32, ${alpha})`);
+            
             ctx.beginPath();
-            ctx.roundRect(-8*size, -15*size, 16*size, 10*size, 3);
+            ctx.ellipse(0, 0, 25 * size, 12 * size, 0, 0, Math.PI * 2);
+            ctx.fillStyle = ringGradient;
             ctx.fill();
             
-            ctx.fillStyle = `rgba(200, 230, 255, ${alpha})`;
+            // 戒指内圈阴影
             ctx.beginPath();
-            ctx.moveTo(0, -30*size);
-            ctx.lineTo(10*size, -18*size);
-            ctx.lineTo(0, -12*size);
-            ctx.lineTo(-10*size, -18*size);
+            ctx.ellipse(0, 0, 23 * size, 10 * size, 0, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(139, 69, 19, ${alpha * 0.3})`;
+            ctx.fill();
+            
+            // 钻石底座
+            ctx.beginPath();
+            ctx.moveTo(-10 * size, -25 * size);
+            ctx.lineTo(10 * size, -25 * size);
+            ctx.lineTo(8 * size, -15 * size);
+            ctx.lineTo(-8 * size, -15 * size);
             ctx.closePath();
+            
+            const baseGradient = ctx.createLinearGradient(0, -25 * size, 0, -15 * size);
+            baseGradient.addColorStop(0, `rgba(192, 192, 192, ${alpha})`);
+            baseGradient.addColorStop(1, `rgba(105, 105, 105, ${alpha})`);
+            ctx.fillStyle = baseGradient;
             ctx.fill();
-            ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
-            ctx.lineWidth = 2;
+            
+            // 钻石
             ctx.beginPath();
-            ctx.moveTo(0, -30*size);
-            ctx.lineTo(-5*size, -20*size);
-            ctx.stroke();
+            ctx.moveTo(0, -40 * size);
+            ctx.lineTo(8 * size, -25 * size);
+            ctx.lineTo(0, -20 * size);
+            ctx.lineTo(-8 * size, -25 * size);
+            ctx.closePath();
+            
+            const diamondGradient = ctx.createLinearGradient(-8 * size, -25 * size, 8 * size, -25 * size);
+            diamondGradient.addColorStop(0, `rgba(230, 230, 250, ${alpha})`);
+            diamondGradient.addColorStop(0.5, `rgba(255, 255, 255, ${alpha})`);
+            diamondGradient.addColorStop(1, `rgba(230, 230, 250, ${alpha})`);
+            
+            ctx.fillStyle = diamondGradient;
+            ctx.fill();
+            
+            // 钻石切面
             ctx.beginPath();
-            ctx.moveTo(0, -30*size);
-            ctx.lineTo(5*size, -20*size);
-            ctx.stroke();
+            ctx.moveTo(0, -40 * size);
+            ctx.lineTo(4 * size, -30 * size);
+            ctx.lineTo(0, -20 * size);
+            ctx.lineTo(-4 * size, -30 * size);
+            ctx.closePath();
+            ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+            ctx.fill();
+            
+            // 钻石反光
+            ctx.beginPath();
+            ctx.arc(-3 * size, -32 * size, 2 * size, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
+            ctx.fill();
+            
+            // 戒指光泽
+            ctx.beginPath();
+            ctx.ellipse(-15 * size, -2 * size, 5 * size, 2 * size, 0, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.3})`;
+            ctx.fill();
+            
             ctx.restore();
         }
 
-        // ---------- 帷幕绘制 ----------
+        // ---------- 帷幕 ----------
         function drawCurtains() {
-            // 夜空渐变
-            for (let y = 0; y < H; y++) {
-                const val = 10 + Math.floor(y/12);
-                const col = `rgb(${Math.max(0,val-5)}, ${Math.max(0,val-5)}, ${Math.min(50,val+10)})`;
-                ctx.fillStyle = col;
-                ctx.fillRect(0, y, W, 1);
-            }
-            stars.forEach(s => { s.twinkle(); s.draw(ctx); });
+            // 星空背景
+            drawCosmicBackground();
             
+            // 帷幕
             const curtainW = W/2;
-            // 左幕
             ctx.fillStyle = COLORS.CURTAIN_RED;
             ctx.fillRect(leftCurtainX, 0, curtainW, H);
+            
+            // 帷幕纹理
             ctx.fillStyle = COLORS.CURTAIN_DARK;
-            for (let i=0; i<curtainW; i+=30) ctx.fillRect(leftCurtainX+i, 0, 10, H);
+            for (let i=0; i<curtainW; i+=30) {
+                ctx.fillRect(leftCurtainX+i, 0, 10, H);
+            }
+            
+            // 帷幕流苏
             ctx.strokeStyle = COLORS.GOLDEN;
             ctx.lineWidth = 3;
             for (let i=0; i<curtainW; i+=15) {
@@ -520,25 +757,54 @@
                 ctx.lineTo(leftCurtainX+i+5, H-25);
                 ctx.stroke();
             }
+            
+            // 帷幕顶部装饰
             ctx.fillStyle = COLORS.GOLDEN;
             ctx.fillRect(leftCurtainX, 0, curtainW, 8);
             
-            // 右幕
+            // 右侧帷幕
             ctx.fillStyle = COLORS.CURTAIN_RED;
             ctx.fillRect(rightCurtainX, 0, curtainW, H);
             ctx.fillStyle = COLORS.CURTAIN_DARK;
-            for (let i=0; i<curtainW; i+=30) ctx.fillRect(rightCurtainX+i, 0, 10, H);
+            for (let i=0; i<curtainW; i+=30) {
+                ctx.fillRect(rightCurtainX+i, 0, 10, H);
+            }
+            
             for (let i=0; i<curtainW; i+=15) {
                 ctx.beginPath();
                 ctx.moveTo(rightCurtainX+i, H-10);
                 ctx.lineTo(rightCurtainX+i+5, H-25);
                 ctx.stroke();
             }
+            
             ctx.fillStyle = COLORS.GOLDEN;
             ctx.fillRect(rightCurtainX, 0, curtainW, 8);
         }
 
-        // ---------- 事件监听 ----------
+        // ---------- 宇宙背景 ----------
+        function drawCosmicBackground() {
+            // 深空渐变背景
+            const gradient = ctx.createLinearGradient(0, 0, 0, H);
+            gradient.addColorStop(0, '#0a0a2a');
+            gradient.addColorStop(0.5, '#1a0a3a');
+            gradient.addColorStop(1, '#0a1a3a');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, W, H);
+            
+            // 绘制星云
+            nebulae.forEach(nebula => {
+                nebula.update();
+                nebula.draw(ctx);
+            });
+            
+            // 绘制宇宙粒子
+            cosmicParticles.forEach(particle => {
+                particle.update();
+                particle.draw(ctx);
+            });
+        }
+
+        // ---------- 事件处理 ----------
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
@@ -547,6 +813,7 @@
             mouseY = (e.clientY - rect.top) * scaleY;
             if (state === STATE_TEXT) buttons.forEach(b => b.handleMove(mouseX, mouseY));
         });
+        
         canvas.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return;
             const rect = canvas.getBoundingClientRect();
@@ -561,6 +828,7 @@
                         heartTimer = 30;
                         heartPos = { x: b.rect.x + b.rect.w/2, y: b.rect.y + b.rect.h/2 };
                         showGift = true;
+                        giftRevealed = true;
                     }
                 });
             }
@@ -568,7 +836,11 @@
 
         // ---------- 动画循环 ----------
         function updateAndDraw() {
-            // 状态机逻辑
+            // 更新浮动效果
+            heartbeat++;
+            roseFloatOffset = Math.sin(heartbeat * 0.02) * 8;
+            ringFloatOffset = Math.sin(heartbeat * 0.02 + Math.PI * 0.5) * 8;
+            
             if (state === STATE_CURTAIN) {
                 drawCurtains();
                 if (!curtainOpen) {
@@ -581,14 +853,10 @@
                     }
                 }
             } else if (state === STATE_FIREWORKS) {
-                // 背景
-                for (let y=0; y<H; y++) {
-                    const val = 5 + Math.floor(y/15);
-                    ctx.fillStyle = `rgb(${Math.max(0,val-3)}, ${Math.max(0,val-3)}, ${Math.min(40,val+5)})`;
-                    ctx.fillRect(0, y, W, 1);
-                }
-                stars.forEach(s => { s.twinkle(); s.draw(ctx); });
+                // 宇宙背景
+                drawCosmicBackground();
                 
+                // 烟花
                 fireworkTimer++;
                 if (fireworkTimer >= FIREWORK_INTERVAL && fireworks.length < MAX_FIREWORKS) {
                     fireworks.push(new GlitterFirework());
@@ -597,46 +865,91 @@
                 fireworks = fireworks.filter(fw => fw.update());
                 fireworks.forEach(fw => fw.draw(ctx));
                 
+                // 8秒后切换到文字状态
                 if (performance.now() - stateStartTime > 8000) {
                     state = STATE_TEXT;
                     fireworks = [];
                 }
             } else if (state === STATE_TEXT) {
-                // 深色背景
-                for (let y=0; y<H; y++) {
-                    ctx.fillStyle = `rgb(${10+Math.floor(y/20)}, ${8+Math.floor(y/25)}, ${25+Math.floor(y/15)})`;
-                    ctx.fillRect(0, y, W, 1);
-                }
-                stars.forEach(s => { s.twinkle(); s.draw(ctx); });
+                // 绘制宇宙背景
+                drawCosmicBackground();
                 
-                if (textAlpha < 1.0) textAlpha = Math.min(1.0, textAlpha + 0.012);
-                else {
-                    heartbeat++;
-                    floatOffset = Math.sin(heartbeat * 0.015) * 5;
-                    textScale = 1.0 + 0.02 * Math.sin(heartbeat * 0.02);
+                // 文字动画
+                if (!giftRevealed) {
+                    if (textAlpha < 1.0) textAlpha = Math.min(1.0, textAlpha + 0.012);
+                    else {
+                        floatOffset = Math.sin(heartbeat * 0.015) * 5;
+                        textScale = 1.0 + 0.02 * Math.sin(heartbeat * 0.02);
+                    }
                 }
                 
                 // 主文字
-                drawGlowText(ctx, 'I LOVE U', W/2, H/2 - 50 + floatOffset, 130, 
-                    {r:230,g:140,b:140}, {r:255,g:235,b:180}, textAlpha, textScale);
+                drawGlowText(ctx, 'I LOVE YOU', W/2, 100 + floatOffset, 110, 
+                    {r:255,g:182,b:193}, {r:255,g:240,b:245}, textAlpha, textScale);
+                
                 // 副标题
-                if (textAlpha > 0.3) {
+                if (!giftRevealed && textAlpha > 0.3) {
                     const subAlpha = Math.min(1.0, (textAlpha - 0.3) * 2.5);
-                    drawGlowText(ctx, 'Do you love me?', W/2, H/2 + 40, 52, 
+                    drawGlowText(ctx, 'Will you be mine forever?', W/2, 180, 40, 
                         {r:255,g:200,b:200}, {r:255,g:240,b:245}, subAlpha, 1.0);
                 }
                 
-                // 戒指玫瑰淡入
+                // 中央展示区：戒指和玫瑰
                 if (showGift) {
                     if (giftAlpha < 1.0) giftAlpha = Math.min(1.0, giftAlpha + 0.02);
-                    const giftYOffset = Math.sin(heartbeat * 0.02) * 5;
-                    drawRose(ctx, W/2 - 100, H - 100 + giftYOffset, 1.2, giftAlpha);
-                    drawRing(ctx, W/2 + 100, H - 120 + giftYOffset, 1.2, giftAlpha);
+                    
+                    // 绘制中央展示区背景光环
+                    const centerX = W/2;
+                    const centerY = H/2 + 30;
+                    
+                    // 光环效果
+                    const haloGradient = ctx.createRadialGradient(
+                        centerX, centerY, 0,
+                        centerX, centerY, 200
+                    );
+                    haloGradient.addColorStop(0, 'rgba(255, 20, 147, 0.1)');
+                    haloGradient.addColorStop(0.7, 'rgba(255, 105, 180, 0.05)');
+                    haloGradient.addColorStop(1, 'rgba(255, 182, 193, 0)');
+                    
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, 200, 0, Math.PI * 2);
+                    ctx.fillStyle = haloGradient;
+                    ctx.fill();
+                    
+                    // 左侧：写实玫瑰
+                    const roseX = centerX - 150;
+                    const roseY = centerY + roseFloatOffset;
+                    drawRealisticRose(ctx, roseX, roseY, 1.2, giftAlpha);
+                    
+                    // 右侧：写实戒指
+                    const ringX = centerX + 150;
+                    const ringY = centerY + ringFloatOffset;
+                    drawRealisticRing(ctx, ringX, ringY, 1.2, giftAlpha);
+                    
+                    // 连接线
+                    ctx.beginPath();
+                    ctx.moveTo(roseX + 30, roseY);
+                    ctx.bezierCurveTo(roseX + 70, roseY - 30, ringX - 70, ringY - 30, ringX - 30, ringY);
+                    ctx.strokeStyle = `rgba(255, 215, 0, ${giftAlpha * 0.5})`;
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    
+                    // 永恒誓言文字
+                    if (giftAlpha > 0.7) {
+                        ctx.font = 'italic 32px Georgia, serif';
+                        ctx.fillStyle = `rgba(255, 255, 255, ${giftAlpha})`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('Eternal Love & Commitment', centerX, centerY + 130);
+                    }
                 }
                 
-                // 按钮
-                if (textAlpha >= 1.0) {
+                // 按钮与爱心反馈
+                if (!giftRevealed) {
                     buttons.forEach(b => { b.update(); b.draw(ctx); });
+                    
                     if (showHeartFeedback) {
                         ctx.font = '80px Georgia, serif';
                         ctx.fillStyle = '#FF6464';
@@ -647,22 +960,23 @@
                     }
                 }
                 
-                // 碎钻星光
-                if (Math.random() < 0.12) {
-                    for (let i=0; i<2; i++) {
-                        const x = W/2 - 100 + Math.random()*200;
-                        const y = H/2 - 80 + Math.random()*160;
+                // 随机星光效果
+                if (Math.random() < 0.15) {
+                    for (let i=0; i<3; i++) {
+                        const x = Math.random() * W;
+                        const y = Math.random() * H;
+                        const size = 1 + Math.random() * 3;
                         ctx.beginPath();
-                        ctx.arc(x, y, 1+Math.random()*2, 0, 2*Math.PI);
-                        ctx.fillStyle = `rgba(255,240,200,${0.4+Math.random()*0.4})`;
+                        ctx.arc(x, y, size, 0, 2*Math.PI);
+                        ctx.fillStyle = `rgba(255, 240, 200, ${0.3+Math.random()*0.4})`;
                         ctx.fill();
                     }
                 }
             }
+            
             requestAnimationFrame(updateAndDraw);
         }
 
-        // 启动
         stateStartTime = performance.now();
         requestAnimationFrame(updateAndDraw);
     })();
